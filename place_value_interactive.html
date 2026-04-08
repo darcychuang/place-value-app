@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>數數看 — 位值操作板</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Fredoka One&display=swap');
+
+  :root {
+    --orange:#e06c3a; --orange-light:#fff3ec; --orange-border:#f0a882;
+    --blue:#3a7bd5;   --blue-light:#eef3ff;
+    --green:#4caf50;  --green-light:#f0fff0;
+    --bg:#f5f0ea;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html,body{height:100%;overflow:hidden;}
+  body{font-family:'Noto Sans TC',sans-serif;background:var(--bg);display:flex;flex-direction:column;height:100vh;touch-action:none;}
+
+  /* TOP BAR */
+  .top-bar{background:#fff;border-bottom:3px solid #e8e0d8;padding:8px 16px;display:flex;align-items:center;gap:12px;flex-shrink:0;flex-wrap:wrap;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+  .top-bar h1{font-family:'Fredoka One',sans-serif;font-size:20px;color:var(--orange);flex-shrink:0;}
+  .divider{width:1px;height:28px;background:#ddd;flex-shrink:0;}
+  .setting-group{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .setting-group label{font-size:13px;font-weight:700;color:#666;white-space:nowrap;}
+
+  .num-input{width:68px;font-family:'Fredoka One',sans-serif;font-size:22px;text-align:center;border:2.5px solid var(--orange-border);border-radius:10px;padding:3px 6px;color:var(--orange);background:var(--orange-light);outline:none;}
+  .num-input:focus{border-color:var(--orange);}
+
+  /* MARKER TYPE SELECTOR */
+  .type-select{
+    display:flex;gap:5px;flex-shrink:0;
+  }
+  .type-btn{
+    display:flex;flex-direction:column;align-items:center;gap:2px;
+    padding:5px 10px;border-radius:10px;border:2.5px solid #ddd;
+    background:#fff;cursor:pointer;touch-action:manipulation;
+    transition:border-color .15s,background .15s;
+  }
+  .type-btn.active{border-color:var(--orange);background:var(--orange-light);}
+  .type-btn .icon{font-size:18px;line-height:1;}
+  .type-btn .name{font-size:10px;font-weight:700;color:#888;}
+  .type-btn.active .name{color:var(--orange);}
+
+  .btn{font-family:'Fredoka One',sans-serif;font-size:15px;padding:7px 18px;border-radius:10px;border:none;cursor:pointer;touch-action:manipulation;white-space:nowrap;}
+  .btn-start{background:var(--orange);color:#fff;box-shadow:0 3px 0 #b84e20;}
+  .btn-reset{background:#fff;color:#888;border:2px solid #ddd;}
+  .btn-answer{background:var(--blue);color:#fff;box-shadow:0 3px 0 #2558a8;margin-left:auto;}
+
+  .toggle-label{display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700;color:#666;cursor:pointer;user-select:none;}
+  .toggle-cb{display:none;}
+  .toggle-track{width:40px;height:22px;border-radius:11px;background:#ccc;position:relative;transition:background .2s;flex-shrink:0;}
+  .toggle-cb:checked+.toggle-track{background:var(--green);}
+  .toggle-track::after{content:'';position:absolute;width:18px;height:18px;background:#fff;border-radius:50%;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.2);}
+  .toggle-cb:checked+.toggle-track::after{left:20px;}
+
+  /* BOARD */
+  .board{flex:1;display:flex;flex-direction:column;gap:10px;padding:10px 14px;overflow:hidden;}
+  .top-zones{display:flex;flex-direction:row;gap:10px;flex:1;min-height:0;}
+  .bottom-zone{flex-shrink:0;height:135px;}
+
+  /* ZONE */
+  .zone{border-radius:14px;border:3px solid;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+  .zone-tens{border-color:var(--orange);background:var(--orange-light);flex:1;}
+  .zone-ones{border-color:var(--blue);background:var(--blue-light);flex:1;}
+  .zone-pool{border-color:var(--green);background:var(--green-light);width:100%;}
+  .zone-header{padding:6px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .zone-tens .zone-header{background:var(--orange);}
+  .zone-ones .zone-header{background:var(--blue);}
+  .zone-pool .zone-header{background:var(--green);}
+  .zone-title{font-family:'Fredoka One',sans-serif;font-size:16px;color:#fff;letter-spacing:.5px;}
+  .zone-badge{margin-left:auto;background:rgba(255,255,255,.28);border-radius:20px;padding:1px 10px;font-family:'Fredoka One',sans-serif;font-size:13px;color:#fff;}
+  .zone-hint{font-size:11px;color:#aaa;padding:3px 10px 0;flex-shrink:0;display:none;}
+  .hint-on .zone-hint{display:block;}
+
+  /* DROP AREA */
+  .drop-area{flex:1;padding:8px;display:flex;flex-wrap:wrap;align-content:flex-start;gap:5px;overflow-y:auto;min-height:40px;position:relative;}
+  .drop-area.drag-over{outline:3px dashed rgba(0,0,0,.18);outline-offset:-4px;background:rgba(255,255,255,.45);border-radius:8px;}
+
+  /* ── MARKER STYLES ── */
+  .marker{width:36px;height:36px;border-radius:6px;cursor:grab;flex-shrink:0;touch-action:none;display:flex;align-items:center;justify-content:center;font-size:20px;user-select:none;}
+  .marker.dragging{opacity:.35;}
+
+  /* block */
+  .marker-block{background:linear-gradient(145deg,#ffd97a,#f5a623);border:2.5px solid #c07800;box-shadow:2px 2px 0 #8a5200,inset 0 1px 0 rgba(255,255,255,.4);}
+  /* ball */
+  .marker-ball{background:radial-gradient(circle at 35% 35%,#ffe08a,#f5a623);border:2.5px solid #c07800;border-radius:50%;box-shadow:2px 2px 4px rgba(0,0,0,.2);}
+  /* branch */
+  .marker-branch{background:#f5efe0;border:2px solid #c8a96a;border-radius:4px 12px 4px 12px;box-shadow:1px 1px 0 #9a7040;}
+  /* candy */
+  .marker-candy{background:radial-gradient(circle at 40% 35%,#ffb3cc,#e05080);border:2.5px solid #b03060;border-radius:50% 50% 50% 30%;box-shadow:2px 2px 4px rgba(0,0,0,.2);}
+
+  /* ── BUNDLE (10→1) ── */
+  /* block stack */
+  .bundle{cursor:grab;flex-shrink:0;touch-action:none;position:relative;display:flex;flex-direction:column;align-items:center;}
+  .bundle.dragging{opacity:.35;}
+  .bundle-lbl{font-family:'Fredoka One',sans-serif;font-size:12px;color:#fff;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;text-shadow:0 1px 2px rgba(0,0,0,.5);z-index:2;}
+
+  /* block stack layers */
+  .bstack-layer{width:38px;height:13px;border-radius:3px;border:2px solid #b84e20;margin-bottom:-2px;}
+  .bstack-layer:nth-child(odd){background:linear-gradient(145deg,#f0a060,#e06c3a);}
+  .bstack-layer:nth-child(even){background:linear-gradient(145deg,#e07040,#c84e20);}
+  .bstack-layer:first-child{border-radius:4px 4px 2px 2px;}
+  .bstack-layer:last-child{border-radius:2px 2px 4px 4px;margin-bottom:0;}
+
+  /* ball basket */
+  .bball-outer{width:48px;height:42px;background:linear-gradient(145deg,#f0c060,#d09020);border:2.5px solid #a06010;border-radius:4px 4px 10px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;overflow:hidden;position:relative;}
+  .bball-row{display:flex;gap:1px;margin-top:1px;}
+  .bball-mini{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe08a,#f5a623);border:1px solid #c07800;}
+
+  /* branch bundle */
+  .bbranch-outer{width:42px;height:44px;background:#f0e8d0;border:2.5px solid #c8a96a;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:3px 2px;}
+  .bbranch-stick{width:34px;height:5px;background:linear-gradient(90deg,#b8884a,#d4a870,#b8884a);border-radius:2px;border:1px solid #9a6030;}
+
+  /* candy bag */
+  .bcandy-outer{width:44px;height:44px;background:linear-gradient(145deg,#ffccdd,#ff80a0);border:2.5px solid #c04060;border-radius:50% 50% 40% 40%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;overflow:hidden;padding:4px;}
+  .bcandy-row{display:flex;gap:2px;}
+  .bcandy-mini{width:9px;height:9px;border-radius:50% 50% 50% 30%;background:radial-gradient(circle at 40% 35%,#ffb3cc,#e05080);border:1px solid #b03060;}
+
+  /* BUNDLE PROMPT */
+  .bundle-prompt{position:absolute;bottom:8px;right:8px;background:var(--blue);color:#fff;border-radius:10px;padding:6px 12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;animation:pulse 1s ease-in-out infinite;z-index:10;border:none;font-family:'Noto Sans TC',sans-serif;box-shadow:0 3px 0 #2558a8;}
+  @keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+
+  /* DRAG GHOST */
+  .drag-ghost{position:fixed;pointer-events:none;z-index:999;opacity:.85;}
+
+  /* MODAL */
+  .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.38);z-index:200;}
+  .overlay.show{display:block;}
+  .modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%) scale(.85);background:#fff;border-radius:22px;padding:28px 40px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.22);z-index:201;min-width:280px;}
+  .modal.show{display:block;animation:popIn .3s ease forwards;}
+  @keyframes popIn{from{transform:translate(-50%,-50%) scale(.8);opacity:0}to{transform:translate(-50%,-50%) scale(1);opacity:1}}
+  .modal h2{font-family:'Fredoka One',sans-serif;font-size:22px;color:var(--orange);margin-bottom:14px;}
+  .modal-body{font-size:16px;color:#444;line-height:2;margin-bottom:20px;}
+  .modal-body .big{font-family:'Fredoka One',sans-serif;font-size:32px;color:var(--blue);display:block;margin:4px 0;}
+  .modal-body .row{margin:2px 0;}
+  .btn-close{font-family:'Fredoka One',sans-serif;font-size:16px;padding:10px 28px;border-radius:12px;border:none;background:var(--orange);color:#fff;cursor:pointer;box-shadow:0 3px 0 #b84e20;touch-action:manipulation;}
+</style>
+</head>
+<body>
+
+<div class="top-bar" id="topBar">
+  <h1>🔢 數數看</h1>
+  <div class="divider"></div>
+
+  <div class="setting-group">
+    <label>數字：</label>
+    <input class="num-input" type="number" id="numInput" min="1" max="99" value="23">
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- MARKER TYPE -->
+  <div class="setting-group">
+    <label>標示物：</label>
+    <div class="type-select" id="typeSelect">
+      <div class="type-btn active" data-type="block" onclick="selectType('block',this)">
+        <span class="icon">🟧</span><span class="name">方塊</span>
+      </div>
+      <div class="type-btn" data-type="ball" onclick="selectType('ball',this)">
+        <span class="icon">🟡</span><span class="name">小球</span>
+      </div>
+      <div class="type-btn" data-type="branch" onclick="selectType('branch',this)">
+        <span class="icon">🪵</span><span class="name">樹枝</span>
+      </div>
+      <div class="type-btn" data-type="candy" onclick="selectType('candy',this)">
+        <span class="icon">🍬</span><span class="name">糖果</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="setting-group">
+    <button class="btn btn-start" onclick="startGame()">開始 ▶</button>
+    <button class="btn btn-reset" onclick="resetGame()">重置</button>
+  </div>
+
+  <div class="divider"></div>
+
+  <label class="toggle-label">
+    <input class="toggle-cb" type="checkbox" id="hintToggle" onchange="toggleHints()">
+    <span class="toggle-track"></span>
+    顯示提示
+  </label>
+
+  <button class="btn btn-answer" id="answerBtn" onclick="showAnswer()" style="display:none;">✅ 看答案</button>
+</div>
+
+<div class="board" id="board">
+  <div class="top-zones">
+
+    <div class="zone zone-tens">
+      <div class="zone-header">
+        <span class="zone-title">🏠 十位的家</span>
+        <span class="zone-badge" id="tens-badge">0</span>
+      </div>
+      <p class="zone-hint" id="tens-hint">把疊好的束拖到這裡</p>
+      <div class="drop-area" id="drop-tens"
+        ondragover="dragOver(event,'tens')" ondragleave="dragLeave(event,'tens')" ondrop="drop(event,'tens')">
+      </div>
+    </div>
+
+    <div class="zone zone-ones">
+      <div class="zone-header">
+        <span class="zone-title">🏠 個位的家</span>
+        <span class="zone-badge" id="ones-badge">0</span>
+      </div>
+      <p class="zone-hint" id="ones-hint">把標示物一個個拖到這裡</p>
+      <div class="drop-area" id="drop-ones"
+        ondragover="dragOver(event,'ones')" ondragleave="dragLeave(event,'ones')" ondrop="drop(event,'ones')">
+      </div>
+    </div>
+
+  </div>
+
+  <div class="zone zone-pool bottom-zone">
+    <div class="zone-header">
+      <span class="zone-title" id="pool-title">🎲 方塊堆</span>
+      <span class="zone-badge" id="pool-badge">0</span>
+    </div>
+    <p class="zone-hint" id="pool-hint">把方塊拖到個位的家，集滿10個再疊成一束！</p>
+    <div class="drop-area" id="drop-pool"
+      ondragover="dragOver(event,'pool')" ondragleave="dragLeave(event,'pool')" ondrop="drop(event,'pool')">
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal()"></div>
+<div class="modal" id="modal">
+  <h2>📊 答案揭曉</h2>
+  <div class="modal-body" id="modalBody"></div>
+  <button class="btn-close" onclick="closeModal()">關閉</button>
+</div>
+
+<script>
+// ── MARKER CONFIGS ──
+const TYPES = {
+  block: {
+    name:'方塊', unit:'個', bundleUnit:'疊',
+    poolTitle:'🟧 方塊堆',
+    hint1:'把疊好的疊拖到這裡',
+    hint2:'把方塊一個個拖到這裡',
+    hint3:'把方塊拖到個位的家，集滿10個點我疊成一疊！',
+    bundlePrompt:'✨ 集滿10個！點我疊成一疊',
+    makeMarkerEl(id){ return makeDiv(id,'marker marker-block',''); },
+    makeBundleEl(id){
+      const el=makeDiv(id,'bundle','');
+      for(let i=0;i<10;i++){const l=document.createElement('div');l.className='bstack-layer';el.appendChild(l);}
+      const lbl=document.createElement('div');lbl.className='bundle-lbl';lbl.textContent='10';el.appendChild(lbl);
+      return el;
+    }
+  },
+  ball: {
+    name:'小球', unit:'顆', bundleUnit:'籃',
+    poolTitle:'🟡 小球堆',
+    hint1:'把裝滿的籃拖到這裡',
+    hint2:'把小球一顆顆拖到這裡',
+    hint3:'把小球拖到個位的家，集滿10顆點我裝成一籃！',
+    bundlePrompt:'✨ 集滿10顆！點我裝成一籃',
+    makeMarkerEl(id){ return makeDiv(id,'marker marker-ball',''); },
+    makeBundleEl(id){
+      const el=makeDiv(id,'bundle','');
+      const outer=document.createElement('div');outer.className='bball-outer';
+      // 3 rows: 4, 3, 3
+      [[4],[3],[3]].forEach(([n])=>{
+        const row=document.createElement('div');row.className='bball-row';
+        for(let i=0;i<n;i++){const b=document.createElement('div');b.className='bball-mini';row.appendChild(b);}
+        outer.appendChild(row);
+      });
+      const lbl=document.createElement('div');lbl.className='bundle-lbl';lbl.textContent='10';outer.appendChild(lbl);
+      el.appendChild(outer);
+      return el;
+    }
+  },
+  branch: {
+    name:'樹枝', unit:'枝', bundleUnit:'束',
+    poolTitle:'🪵 樹枝堆',
+    hint1:'把綁好的束拖到這裡',
+    hint2:'把樹枝一枝枝拖到這裡',
+    hint3:'把樹枝拖到個位的家，集滿10枝點我綁成一束！',
+    bundlePrompt:'✨ 集滿10枝！點我綁成一束',
+    makeMarkerEl(id){ return makeDiv(id,'marker marker-branch','🌿'); },
+    makeBundleEl(id){
+      const el=makeDiv(id,'bundle','');
+      const outer=document.createElement('div');outer.className='bbranch-outer';
+      for(let i=0;i<8;i++){const s=document.createElement('div');s.className='bbranch-stick';outer.appendChild(s);}
+      const lbl=document.createElement('div');lbl.className='bundle-lbl';lbl.textContent='10';outer.appendChild(lbl);
+      el.appendChild(outer);
+      return el;
+    }
+  },
+  candy: {
+    name:'糖果', unit:'顆', bundleUnit:'包',
+    poolTitle:'🍬 糖果堆',
+    hint1:'把裝好的包拖到這裡',
+    hint2:'把糖果一顆顆拖到這裡',
+    hint3:'把糖果拖到個位的家，集滿10顆點我裝成一包！',
+    bundlePrompt:'✨ 集滿10顆！點我裝成一包',
+    makeMarkerEl(id){ return makeDiv(id,'marker marker-candy',''); },
+    makeBundleEl(id){
+      const el=makeDiv(id,'bundle','');
+      const outer=document.createElement('div');outer.className='bcandy-outer';
+      [[4],[3],[3]].forEach(([n])=>{
+        const row=document.createElement('div');row.className='bcandy-row';
+        for(let i=0;i<n;i++){const c=document.createElement('div');c.className='bcandy-mini';row.appendChild(c);}
+        outer.appendChild(row);
+      });
+      const lbl=document.createElement('div');lbl.className='bundle-lbl';lbl.textContent='10';outer.appendChild(lbl);
+      el.appendChild(outer);
+      return el;
+    }
+  }
+};
+
+function makeDiv(id,cls,text){
+  const el=document.createElement('div');
+  el.className=cls;el.id=id;
+  if(text)el.textContent=text;
+  return el;
+}
+
+// ── STATE ──
+let targetNumber=0, items=[], idCounter=0;
+let currentType='block';
+let mouseDragItem=null;
+let touchDragItem=null, touchGhost=null, touchOffX=0, touchOffY=0;
+
+// ── TYPE SELECTION ──
+function selectType(type, btn){
+  currentType=type;
+  document.querySelectorAll('.type-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── GAME CONTROL ──
+function startGame(){
+  const n=parseInt(document.getElementById('numInput').value);
+  if(isNaN(n)||n<1||n>99){alert('請輸入 1–99');return;}
+  targetNumber=n;
+  document.getElementById('numInput').style.visibility='hidden';
+  document.getElementById('answerBtn').style.display='flex';
+  // Lock type buttons during game
+  document.querySelectorAll('.type-btn').forEach(b=>b.style.pointerEvents='none');
+  clearBoard();
+  updateZoneLabels();
+  const cfg=TYPES[currentType];
+  const pool=document.getElementById('drop-pool');
+  for(let i=0;i<n;i++){
+    const id='m'+(++idCounter);
+    items.push({id,type:'marker',zone:'pool'});
+    pool.appendChild(attachHandlers(cfg.makeMarkerEl(id),id));
+  }
+  updateBadges();
+}
+
+function resetGame(){
+  clearBoard();
+  document.getElementById('numInput').style.visibility='visible';
+  document.getElementById('answerBtn').style.display='none';
+  document.querySelectorAll('.type-btn').forEach(b=>b.style.pointerEvents='');
+  closeModal();
+}
+
+function clearBoard(){
+  items=[];
+  ['pool','ones','tens'].forEach(z=>document.getElementById('drop-'+z).innerHTML='');
+  updateBadges();
+}
+
+function updateZoneLabels(){
+  const cfg=TYPES[currentType];
+  document.getElementById('pool-title').textContent = cfg.poolTitle;
+  document.getElementById('tens-hint').textContent  = cfg.hint1;
+  document.getElementById('ones-hint').textContent  = cfg.hint2;
+  document.getElementById('pool-hint').textContent  = cfg.hint3;
+}
+
+// ── ELEMENT FACTORIES ──
+function attachHandlers(el,id){
+  el.draggable=true;
+  el.addEventListener('dragstart',e=>{mouseDragItem=items.find(i=>i.id===id);e.dataTransfer.setData('text',id);setTimeout(()=>el.classList.add('dragging'),0);});
+  el.addEventListener('dragend',()=>{el.classList.remove('dragging');mouseDragItem=null;});
+  el.addEventListener('touchstart',e=>startTouch(e,id),{passive:false});
+  return el;
+}
+
+// ── MOUSE DRAG ──
+function dragOver(e,z){e.preventDefault();document.getElementById('drop-'+z).classList.add('drag-over');}
+function dragLeave(e,z){document.getElementById('drop-'+z).classList.remove('drag-over');}
+function drop(e,z){e.preventDefault();document.getElementById('drop-'+z).classList.remove('drag-over');if(mouseDragItem)moveItem(mouseDragItem.id,z);}
+
+// ── TOUCH DRAG ──
+function startTouch(e,id){
+  e.preventDefault();
+  touchDragItem=items.find(i=>i.id===id);
+  const el=document.getElementById(id);
+  const r=el.getBoundingClientRect(),t=e.touches[0];
+  touchOffX=t.clientX-r.left;touchOffY=t.clientY-r.top;
+  touchGhost=el.cloneNode(true);
+  touchGhost.classList.add('drag-ghost');
+  Object.assign(touchGhost.style,{width:r.width+'px',height:r.height+'px',left:(t.clientX-touchOffX)+'px',top:(t.clientY-touchOffY)+'px'});
+  document.body.appendChild(touchGhost);
+  el.style.opacity='0.3';
+  document.addEventListener('touchmove',movingTouch,{passive:false});
+  document.addEventListener('touchend',endTouch);
+}
+function movingTouch(e){
+  e.preventDefault();
+  const t=e.touches[0];
+  if(touchGhost){touchGhost.style.left=(t.clientX-touchOffX)+'px';touchGhost.style.top=(t.clientY-touchOffY)+'px';}
+  ['pool','ones','tens'].forEach(z=>document.getElementById('drop-'+z).classList.remove('drag-over'));
+  document.elementFromPoint(t.clientX,t.clientY)?.closest('.drop-area')?.classList.add('drag-over');
+}
+function endTouch(e){
+  document.removeEventListener('touchmove',movingTouch);
+  document.removeEventListener('touchend',endTouch);
+  if(touchGhost){touchGhost.remove();touchGhost=null;}
+  const t=e.changedTouches[0];
+  ['pool','ones','tens'].forEach(z=>document.getElementById('drop-'+z).classList.remove('drag-over'));
+  if(touchDragItem){
+    document.getElementById(touchDragItem.id).style.opacity='';
+    const zone=document.elementFromPoint(t.clientX,t.clientY)?.closest('.drop-area')?.id?.replace('drop-','');
+    if(zone)moveItem(touchDragItem.id,zone);
+  }
+  touchDragItem=null;
+}
+
+// ── MOVE ──
+function moveItem(id,z){
+  const item=items.find(i=>i.id===id);
+  if(!item)return;
+  if(item.type==='marker'&&z==='tens')return; // markers can't go to tens directly
+  if(item.type==='bundle'&&z==='pool')return;  // bundles can't return to pool
+  document.getElementById('drop-'+z).appendChild(document.getElementById(id));
+  item.zone=z;
+  updateBadges();
+  checkBundle();
+}
+
+// ── BUNDLE ──
+function checkBundle(){
+  document.getElementById('bundleBtn')?.remove();
+  const count=items.filter(i=>i.zone==='ones'&&i.type==='marker').length;
+  if(count>=10){
+    const btn=document.createElement('button');
+    btn.className='bundle-prompt';btn.id='bundleBtn';
+    btn.textContent=TYPES[currentType].bundlePrompt;
+    btn.onclick=bundleTen;
+    document.getElementById('drop-ones').appendChild(btn);
+  }
+}
+
+function bundleTen(){
+  items.filter(i=>i.zone==='ones'&&i.type==='marker').slice(0,10).forEach(m=>{
+    document.getElementById(m.id)?.remove();
+    items=items.filter(i=>i.id!==m.id);
+  });
+  const sid='s'+(++idCounter);
+  items.push({id:sid,type:'bundle',zone:'ones'});
+  const cfg=TYPES[currentType];
+  const bundleEl=attachHandlers(cfg.makeBundleEl(sid),sid);
+  document.getElementById('drop-ones').appendChild(bundleEl);
+  document.getElementById('bundleBtn')?.remove();
+  updateBadges();
+  checkBundle();
+}
+
+// ── BADGES ──
+function updateBadges(){
+  const cfg=TYPES[currentType];
+  const tens=items.filter(i=>i.zone==='tens'&&i.type==='bundle').length;
+  const oM  =items.filter(i=>i.zone==='ones'&&i.type==='marker').length;
+  const oB  =items.filter(i=>i.zone==='ones'&&i.type==='bundle').length;
+  const pool=items.filter(i=>i.zone==='pool').length;
+  document.getElementById('tens-badge').textContent=tens+' '+cfg.bundleUnit;
+  document.getElementById('ones-badge').textContent=oM+' '+cfg.unit+(oB?` + ${oB}${cfg.bundleUnit}`:'');
+  document.getElementById('pool-badge').textContent=pool+' '+cfg.unit;
+}
+
+// ── HINTS ──
+function toggleHints(){
+  document.getElementById('board').classList.toggle('hint-on',document.getElementById('hintToggle').checked);
+}
+
+// ── ANSWER ──
+function showAnswer(){
+  const cfg=TYPES[currentType];
+  const tens=items.filter(i=>i.zone==='tens'&&i.type==='bundle').length;
+  const oM  =items.filter(i=>i.zone==='ones'&&i.type==='marker').length;
+  const oB  =items.filter(i=>i.zone==='ones'&&i.type==='bundle').length;
+  const pool=items.filter(i=>i.zone==='pool').length;
+
+  let html='';
+  if(pool>0){
+    html=`<div class="row">⚠️ ${cfg.poolTitle}還有 ${pool} ${cfg.unit}沒搬走</div>`;
+  } else if(oB>0){
+    html=`<div class="row">⚠️ 個位的家還有 ${oB} ${cfg.bundleUnit}，記得拖到十位的家！</div>`;
+  } else if(oM>=10){
+    html=`<div class="row">⚠️ 個位還有10${cfg.unit}以上，可以再疊一${cfg.bundleUnit}！</div>`;
+  } else {
+    // Show result
+    const total=tens*10+oM;
+    html=
+      `<div class="row">${tens} 個十，${oM} 個一</div>`+
+      `<span class="big">總共是 ${total}</span>`;
+  }
+
+  document.getElementById('modalBody').innerHTML=html;
+  document.getElementById('modal').classList.add('show');
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('modal').classList.remove('show');
+  document.getElementById('overlay').classList.remove('show');
+}
+</script>
+</body>
+</html>
